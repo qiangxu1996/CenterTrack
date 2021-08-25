@@ -3,9 +3,14 @@ from sklearn.utils.linear_assignment_ import linear_assignment
 from numba import jit
 import copy
 
+from .kalman_filter import KalmanFilter
+
+
 class Tracker(object):
   def __init__(self, opt):
     self.opt = opt
+    if opt.kalman:
+      self.kalman_filter = KalmanFilter()
     self.reset()
 
   def init_track(self, results):
@@ -19,6 +24,7 @@ class Tracker(object):
         if not ('ct' in item):
           bbox = item['bbox']
           item['ct'] = [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2]
+        self.kalman_init(item)
         self.tracks.append(item)
 
   def reset(self):
@@ -28,6 +34,13 @@ class Tracker(object):
   def step(self, results, public_det=None):
     N = len(results)
     M = len(self.tracks)
+
+    if self.opt.kalman and M > 0:
+      mean = np.stack([track['mean'] for track in self.tracks])
+      covariance = np.stack([track['covariance'] for track in self.tracks])
+      mean, covariance = self.kalman_filter.multi_predict(mean, covariance)
+      for t, m, c in zip(self.tracks, mean, covariance):
+        t['mean'], t['covariance'] = m, c
 
     dets = np.array(
       [det['ct'] + det['tracking'] for det in results], np.float32) # N x 2
@@ -78,6 +91,10 @@ class Tracker(object):
       track['tracking_id'] = self.tracks[m[1]]['tracking_id']
       track['age'] = 1
       track['active'] = self.tracks[m[1]]['active'] + 1
+      if self.opt.kalman:
+        prev = self.tracks[m[1]]
+        track['mean'], track['covariance'] = self.kalman_filter.update(
+          prev['mean'], prev['covariance'], tlbr2xyah(track['bbox']))
       ret.append(track)
 
     if self.opt.public_det and len(unmatched_dets) > 0:
@@ -98,6 +115,7 @@ class Tracker(object):
             track['tracking_id'] = self.id_count
             track['age'] = 1
             track['active'] = 1
+            self.kalman_init(track)
             ret.append(track)
     else:
       # Private detection: create tracks for all un-matched detections
@@ -108,6 +126,7 @@ class Tracker(object):
           track['tracking_id'] = self.id_count
           track['age'] = 1
           track['active'] =  1
+          self.kalman_init(track)
           ret.append(track)
     
     for i in unmatched_tracks:
@@ -126,6 +145,11 @@ class Tracker(object):
     self.tracks = ret
     return ret
 
+  def kalman_init(self, track):
+    if self.opt.kalman:
+      xyah = tlbr2xyah(track['bbox'])
+      track['mean'], track['covariance'] = self.kalman_filter.initiate(xyah)
+
 def greedy_assignment(dist):
   matched_indices = []
   if dist.shape[1] == 0:
@@ -136,3 +160,13 @@ def greedy_assignment(dist):
       dist[:, j] = 1e18
       matched_indices.append([i, j])
   return np.array(matched_indices, np.int32).reshape(-1, 2)
+
+def tlbr2xyah(tlbr):
+  w = tlbr[2] - tlbr[0]
+  h = tlbr[3] - tlbr[1]
+  return np.array([(tlbr[0] + tlbr[2]) / 2, (tlbr[1] + tlbr[3]) / 2, w / h, h])
+
+def xyah2tlbr(xyah):
+  h2 = xyah[3] / 2
+  w2 = xyah[2] * h2
+  return np.array([xyah[0] - w2, xyah[1] - h2, xyah[0] + w2, xyah[1] + h2])

@@ -17,7 +17,7 @@ from utils.image import get_affine_transform, affine_transform
 from utils.image import draw_umich_gaussian, gaussian_radius
 from utils.post_process import generic_post_process
 from utils.debugger import Debugger
-from utils.tracker import Tracker
+from utils.tracker import Tracker, xyah2tlbr
 from dataset.dataset_factory import get_dataset
 
 
@@ -415,9 +415,10 @@ class Detector(object):
           sc = item['score'] if self.opt.demo == '' or \
             not ('tracking_id' in item) else item['tracking_id']
           sc = item['tracking_id'] if self.opt.show_track_color else sc
-          
+
+          bbox = xyah2tlbr(item['mean']) if self.opt.kalman else item['bbox']
           debugger.add_coco_bbox(
-            item['bbox'], item['class'] - 1, sc, img_id='generic')
+            bbox, item['class'] - 1, sc, img_id='generic')
 
         if 'tracking' in item:
           debugger.add_arrow(item['ct'], item['tracking'], img_id='generic')
