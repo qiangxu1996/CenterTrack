@@ -448,9 +448,6 @@ class Detector(object):
       debugger.imgs['generic'] = debugger.imgs['ddd_pred']
     if self.opt.debug == 4:
       debugger.save_all_imgs(self.opt.debug_dir, prefix='{}'.format(self.cnt))
-    else:
-      debugger.show_all_imgs(pause=self.pause)
-  
 
   def reset_tracking(self):
     self.tracker.reset()
