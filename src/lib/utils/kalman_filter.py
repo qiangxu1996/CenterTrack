@@ -69,6 +69,7 @@ class KalmanFilter(object):
         # the model. This is a bit hacky.
         self._std_weight_position = 1. / 20
         self._std_weight_velocity = 1. / 160
+        self._std_weight_measure = 1. / 5
 
     def initiate(self, measurement):
         """
@@ -141,8 +142,8 @@ class KalmanFilter(object):
             The projected mean and covariance matrix of the given state estimate.
         """
         std = [
-            self._std_weight_position * mean[3], self._std_weight_position *
-            mean[3], 1e-1, self._std_weight_position * mean[3]
+            self._std_weight_measure * mean[3], self._std_weight_measure *
+            mean[3], 1e-1, self._std_weight_measure * mean[3]
         ]
         innovation_cov = np.diag(np.square(std))
 
