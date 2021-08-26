@@ -12,6 +12,7 @@ import copy
 import numpy as np
 from opts import opts
 from detector import Detector
+from utils.tracker import xyah2tlbr
 
 
 image_ext = ['jpg', 'jpeg', 'png', 'webp']
@@ -99,6 +100,12 @@ def demo(opt):
 
 def save_and_exit(opt, out=None, results=None, out_name=''):
   if opt.save_results and (results is not None):
+    w, h = 640, 480
+    for i in range(len(results)):
+      with open(f'../results/{i:06}.txt', 'w') as f:
+        for r in results[i + 1]:
+          b = xyah2tlbr(r['mean']) if opt.kalman else r['bbox']
+          f.write(f"{r['class']} {r['score']} {b[0] / w} {b[1] / h} {(b[2] - b[0]) / w} {(b[3] - b[1]) / h}\n")
     save_dir =  '../results/{}_results.json'.format(opt.exp_id + '_' + out_name)
     print('saving results to', save_dir)
     json.dump(_to_list(copy.deepcopy(results)), 
