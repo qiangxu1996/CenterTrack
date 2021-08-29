@@ -105,6 +105,7 @@ def save_and_exit(opt, out=None, results=None, out_name=''):
       with open(f'../results/{i:06}.txt', 'w') as f:
         for r in results[i + 1]:
           b = xyah2tlbr(r['mean']) if opt.kalman else r['bbox']
+          b = b.clip(0, [w, h, w, h])
           f.write(f"{r['class']} {r['score']} {b[0] / w} {b[1] / h} {(b[2] - b[0]) / w} {(b[3] - b[1]) / h}\n")
     save_dir =  '../results/{}_results.json'.format(opt.exp_id + '_' + out_name)
     print('saving results to', save_dir)

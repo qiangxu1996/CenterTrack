@@ -67,9 +67,9 @@ class KalmanFilter(object):
         # Motion and observation uncertainty are chosen relative to the current
         # state estimate. These weights control the amount of uncertainty in
         # the model. This is a bit hacky.
-        self._std_weight_position = 1. / 20
-        self._std_weight_velocity = 1. / 160
-        self._std_weight_measure = 1. / 5
+        self._std_weight_position = 1. / 320
+        self._std_weight_velocity = 1. / 80
+        self._std_weight_measure = 2.
 
     def initiate(self, measurement):
         """
@@ -113,13 +113,14 @@ class KalmanFilter(object):
             The mean vector and covariance matrix of the predicted state. 
             Unobserved velocities are initialized to 0 mean.
         """
+        wv = self.weight_velocity(mean[4:])
         std_pos = [
             self._std_weight_position * mean[3], self._std_weight_position *
             mean[3], 1e-2, self._std_weight_position * mean[3]
         ]
         std_vel = [
-            self._std_weight_velocity * mean[3], self._std_weight_velocity *
-            mean[3], 1e-5, self._std_weight_velocity * mean[3]
+            self._std_weight_velocity * mean[3] * wv[0], self._std_weight_velocity *
+            mean[3] * wv[1], 1e-5, self._std_weight_velocity * mean[3] * wv[3]
         ]
         motion_cov = np.diag(np.square(np.r_[std_pos, std_vel]))
 
@@ -166,15 +167,16 @@ class KalmanFilter(object):
             The mean vector and covariance matrix of the predicted state.
             Unobserved velocities are initialized to 0 mean.
         """
+        wv = self.weight_velocity(mean[:, 4:])
         std_pos = [
             self._std_weight_position * mean[:, 3], self._std_weight_position *
             mean[:, 3], 1e-2 * np.ones_like(mean[:, 3]),
             self._std_weight_position * mean[:, 3]
         ]
         std_vel = [
-            self._std_weight_velocity * mean[:, 3], self._std_weight_velocity *
-            mean[:, 3], 1e-5 * np.ones_like(mean[:, 3]),
-            self._std_weight_velocity * mean[:, 3]
+            self._std_weight_velocity * mean[:, 3] * wv[:, 0], self._std_weight_velocity *
+            mean[:, 3] * wv[:, 1], 1e-5 * np.ones_like(mean[:, 3]),
+            self._std_weight_velocity * mean[:, 3] * wv[:, 3]
         ]
         sqr = np.square(np.r_[std_pos, std_vel]).T
 
@@ -266,3 +268,9 @@ class KalmanFilter(object):
             return squared_maha
         else:
             raise ValueError('invalid distance metric')
+
+    @staticmethod
+    def weight_velocity(v):
+        wv = 2 ** (np.log10(abs(v)) + 1) + 1
+        wv[wv == 1] = 10
+        return wv
